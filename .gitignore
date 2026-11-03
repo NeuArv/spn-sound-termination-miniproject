@@ -1,0 +1,20 @@
+# NEURON build artifacts (rebuild with nrnivmodl)
+*.o
+*.c
+*.cpp
+*.dll
+!nrnmech.dll
+x86_64/
+arm64/
+
+# Python / Jupyter
+__pycache__/
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+__MACOSX/
+
+# Paper (copyrighted)
+*.pdf
+paper_text.txt

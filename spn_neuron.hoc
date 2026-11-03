@@ -1,0 +1,92 @@
+// SPN neuron model
+// ---------------------------------------------
+//
+// This model simulates rebound action potential firing in SPN neurons
+// following prolonged inhibition from the MNTB.
+//
+// Reference:
+// The Sound of Silence: ionic mechanisms encoding sound termination.
+// Cornelia Kopp-Scheinpflug, Adam JB Tozer, Susan W Robinson
+// Bruce L Tempel, Matthias H Hennig and Ian D Forsythe
+// Neuron, in press (2011)
+//
+// Contact:
+// Matthias H. Hennig, University of Edinburgh, 2011
+// m.hennig@ed.ac.uk
+// mhhennig@gmail.com
+//
+// with contributions from:
+// Sarah J. Griffin, MRC Toxicology Unit, Leicester
+
+// create the model SPN neuron
+// ---------------------------------------------
+
+lstd = 20
+
+create soma
+soma	{
+    nseg=1 
+    diam=lstd 
+    L=lstd 
+    
+    insert pas 
+    
+    insert sjg_na
+    insert HT
+    insert LT
+    insert sjg_ih
+    insert lva
+    
+    cm = 1.5 //2
+    ek = -90
+    ena = 55
+}
+
+access soma
+
+// Coductances
+// ---------------------------------------------
+
+// helper functions to:
+// convert from nanosiemens to mho/cm2.
+func nstomho() {
+    return ($1/area(0.5)*1E8*1E-9)
+}
+// convert from mho/cm2 to nanosiemens.
+func mhotons() {
+    return ($1*area(0.5)*1E-8*1E9)
+}
+
+celsius=37
+
+// linear leak
+g_pas = 0.00018
+e_pas = -90
+
+// Na+
+gnabar_sjg_na = 0.055
+sjgena_sjg_na = 55
+usetable_sjg_na = 0
+
+// KVs
+gbar_LT = 0.0023
+gbar_HT = 0.028
+
+// Ih
+usetable_sjg_ih = 0
+ghbar_sjg_ih = 0.015
+
+// LVA Ca++
+gbar_lva = 0.0025
+Erev_lva = 120
+V_s_lva = 0
+
+// print a summary of the parameters
+printf("soma area: %g um*um\n",area(0.5))
+printf("leak: %g nS\n",mhotons(g_pas))
+printf("Na++: %g nS\n",mhotons(gnabar_sjg_na))
+printf("LT: %g nS\n",mhotons(gbar_LT))
+printf("HT: %g nS\n",mhotons(gbar_HT))
+printf("Ih: %g nS\n",mhotons(ghbar_sjg_ih))
+printf("LVA: %g nS\n",mhotons(gbar_lva))
+printf("cap: %g pF\n",area(0.5)*1E-8*cm/1E-6)
