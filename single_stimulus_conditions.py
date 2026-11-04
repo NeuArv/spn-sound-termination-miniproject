@@ -145,7 +145,9 @@ def print_table(res, title):
           'offset)')
 
 
-def plot(res, fname, suptitle):
+def plot(res, fname, suptitle='', annotate=True):
+    """Plot traces; annotate=False gives a clean version (traces, step
+    shading, axes and panel titles only) for slides."""
     # common y-range for all panels so depths are directly comparable
     vlow = min(c['v'].min() for c in res.values())
     ybot = min(-110, np.floor(vlow / 10) * 10 - 10)
@@ -157,9 +159,18 @@ def plot(res, fname, suptitle):
         ax = fig.add_subplot(gs[i // 2, i % 2])
         m = c['m']
         ax.axvspan(0, DUR, color='0.92', zorder=0)
+        ax.plot(c['t'], c['v'], color=c['color'], lw=1)
+        ax.set_xlim(-50, DUR + T_POST)
+        ax.set_ylim(ybot, 50)
+        ax.set_title(f'({"abcd"[i]}) {name}', loc='left', fontsize=11)
+        ax.set_xlabel('Time from step onset (ms)')
+        ax.set_ylabel('Vm (mV)')
+        ax.spines[['top', 'right']].set_visible(False)
+        if not annotate:
+            continue
+
         ax.text(DUR / 2, 42, f'step {c["amp"]*1e3:.0f} pA', ha='center',
                 fontsize=8, color='0.4')
-        ax.plot(c['t'], c['v'], color=c['color'], lw=1)
         ax.axhline(m['rest'], ls=':', color='0.5', lw=0.8)
         ax.text(-48, m['rest'] + 2, f'rest {m["rest"]:.1f} mV', fontsize=8,
                 color='0.4')
@@ -207,32 +218,28 @@ def plot(res, fname, suptitle):
                     f'peak {m["rebound"]:.1f} mV', fontsize=9,
                     color='tab:blue', ha='right', fontweight='bold')
 
-        ax.set_xlim(-50, DUR + T_POST)
-        ax.set_ylim(ybot, 50)
-        ax.set_title(f'({"abcd"[i]}) {name}', loc='left', fontsize=11)
-        ax.set_xlabel('Time from step onset (ms)')
-        ax.set_ylabel('Vm (mV)')
-        ax.spines[['top', 'right']].set_visible(False)
-
     # overlay of the offset responses
     ax = fig.add_subplot(gs[2, :])
     for name, c in res.items():
         ax.plot(c['t'] - DUR, c['v'], color=c['color'], lw=1.2, label=name)
-        if c['m']['n_ap']:
+        if annotate and c['m']['n_ap']:
             ax.plot(c['m']['latency'], 46, 'v', color=c['color'], ms=7)
     ax.axvline(0, color='0.5', lw=0.8, ls='--')
-    ax.text(0.5, ybot + 5, 'step offset', fontsize=8, color='0.4')
     ax.set_xlim(-10, 60)
     ax.set_ylim(ybot, 50)
-    ax.set_title('(e) Offset responses aligned to step offset '
-                 '(triangles = first AP)', loc='left', fontsize=11)
     ax.set_xlabel('Time from step offset (ms)')
     ax.set_ylabel('Vm (mV)')
-    ax.legend(frameon=False, loc='lower right', ncol=2, fontsize=9)
     ax.spines[['top', 'right']].set_visible(False)
+    if annotate:
+        ax.text(0.5, ybot + 5, 'step offset', fontsize=8, color='0.4')
+        ax.set_title('(e) Offset responses aligned to step offset '
+                     '(triangles = first AP)', loc='left', fontsize=11)
+        ax.legend(frameon=False, loc='lower right', ncol=2, fontsize=9)
+        fig.suptitle(suptitle, fontsize=12)
+    else:
+        ax.set_title('(e)', loc='left', fontsize=11)
 
-    fig.suptitle(suptitle, fontsize=12)
-    fig.savefig(fname, dpi=150, bbox_inches='tight')
+    fig.savefig(fname, dpi=300 if not annotate else 150, bbox_inches='tight')
     print(f'saved {fname}')
 
 
@@ -241,10 +248,13 @@ res = simulate(match_v=True)
 title = (f'single {DUR:.0f} ms step (-400 pA; I_H-blocked: step reduced so '
          f'Vm settles at {V_NOIH:.0f} mV)')
 print_table(res, title)
-plot(res, 'single_stimulus_conditions.png', f'SPN model: {title}')
+plot(res, 'single_stimulus_conditions.png', annotate=False)
+plot(res, 'single_stimulus_conditions_annotated.png', f'SPN model: {title}')
 
 # Figure 2: the same -400 pA step for every condition
 res = simulate(match_v=False)
 title = f'single {DUR:.0f} ms step, -400 pA for all conditions'
 print_table(res, title)
-plot(res, 'single_stimulus_conditions_400pA.png', f'SPN model: {title}')
+plot(res, 'single_stimulus_conditions_400pA.png', annotate=False)
+plot(res, 'single_stimulus_conditions_400pA_annotated.png',
+     f'SPN model: {title}')
