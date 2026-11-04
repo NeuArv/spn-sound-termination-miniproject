@@ -71,11 +71,19 @@ def bisect(f, target, lo, hi, n=40):
 
 
 
+V_NOIH = -100.0       # mV, target trough for panel ii (as in paper Fig. 7Fii)
+NOIH = 'No $I_H$ (to -100 mV)'
+NOIH_RAW = 'No $I_H$ (-400 pA)'
+CORR = 'No $I_H$, $V_m$ corr.'
+
+# 'trace': show voltage traces in the top row; 'ls': line style in bottom plots
 conditions = {
-    'Full model':            dict(gh=GH0, gca=GCA0, color='k'),
-    'No $I_H$':              dict(gh=0.0, gca=GCA0, color='green'),
-    'No $I_H$, $V_m$ corr.': dict(gh=0.0, gca=GCA0, color='limegreen'),
-    'No $I_{TCa}$':          dict(gh=GH0, gca=0.0, color='deepskyblue'),
+    'Full model':  dict(gh=GH0, gca=GCA0, color='k', trace=True, ls='-'),
+    NOIH:          dict(gh=0.0, gca=GCA0, color='green', trace=True, ls='-'),
+    CORR:          dict(gh=0.0, gca=GCA0, color='limegreen', trace=True, ls='-'),
+    'No $I_{TCa}$': dict(gh=GH0, gca=0.0, color='deepskyblue', trace=True,
+                         ls='-'),
+    NOIH_RAW:      dict(gh=0.0, gca=GCA0, color='green', trace=False, ls='--'),
 }
 
 set_condition(GH0, GCA0)
@@ -90,22 +98,28 @@ for name, c in conditions.items():
     c['hold'] = bisect(lambda x: (setattr(hold, 'amp', x), resting_v())[1],
                        v_rest, -0.1, 0.12)
 
-# Vm correction: reduce the step in the no-I_H model so that the steady-state
-# hyperpolarization at the end of a 100 ms step matches the full model.
-c = conditions['No $I_H$, $V_m$ corr.']
+# Without I_H only the 2.26 nS leak remains, so -400 pA drives Vm to ~-230 mV.
+# Two Vm corrections reduce the step in the no-I_H model so the Vm at the end
+# of a 100 ms step reaches (ii) -100 mV, the trough shown in paper Fig. 7Fii,
+# or (iii) the full model's steady-state level (dashed line).
+c = conditions[CORR]
 set_condition(c['gh'], c['gca'])
 hold.amp = c['hold']
-amp_corr = bisect(steady_state_v, v_target, AMP, 0.0)
-print(f'Rest: {v_rest:.1f} mV; full model Vm at end of 100 ms step: '
-      f'{v_target:.1f} mV; no-I_H corrected step: {amp_corr*1e3:.0f} pA')
 for name, c in conditions.items():
-    print(f'  holding current {name:24s}: {c["hold"]*1e3:7.1f} pA')
+    c['amp'] = AMP
+conditions[NOIH]['amp'] = bisect(steady_state_v, V_NOIH, AMP, 0.0)
+conditions[CORR]['amp'] = bisect(steady_state_v, v_target, AMP, 0.0)
+print(f'Rest: {v_rest:.1f} mV; full model Vm at end of 100 ms step: '
+      f'{v_target:.1f} mV')
+for name, c in conditions.items():
+    print(f'  {name:24s} holding {c["hold"]*1e3:6.1f} pA, '
+          f'step {c["amp"]*1e3:6.0f} pA')
 
 results, traces = {}, {}
 for name, c in conditions.items():
     set_condition(c['gh'], c['gca'])
     hold.amp = c['hold']
-    amp = amp_corr if 'corr' in name else AMP
+    amp = c['amp']
     lat, nap, tr = [], [], []
     for d in DURATIONS:
         t, v, sp = run(d, amp)
@@ -123,15 +137,19 @@ set_condition(GH0, GCA0)
 fig = plt.figure(figsize=(13, 7))
 gs = fig.add_gridspec(2, 4, height_ratios=[1, 1.1], hspace=0.35, wspace=0.3)
 cmap = plt.get_cmap('jet')
-for i, name in enumerate(conditions):
+for i, name in enumerate([n for n, c in conditions.items() if c['trace']]):
     ax = fig.add_subplot(gs[0, i])
     for j, (t, v) in enumerate(traces[name]):
         ax.plot(t, v, color=cmap(j / (len(DURATIONS) - 1)), lw=0.8)
     ax.axhline(v_target, ls='--', color='k', lw=0.8)
+    if name == NOIH:
+        ax.axhline(V_NOIH, ls=':', color='gray', lw=0.8)
+        ax.text(-128, V_NOIH - 9, f'{V_NOIH:.0f} mV', fontsize=8,
+                color='gray')
     ax.set_xlim(-130, 70)
-    vmin = min(v.min() for _, v in traces[name])
-    ax.set_ylim(min(-130, np.floor(vmin / 10) * 10 - 10), 50)
-    ax.set_title(f'({"i ii iii iv".split()[i]}) {name}', fontsize=10)
+    ax.set_ylim(-130, 50)
+    ax.set_title(f'({"i ii iii iv".split()[i]}) {name}\n'
+                 f'step {conditions[name]["amp"]*1e3:.0f} pA', fontsize=10)
     ax.set_xlabel('Time from step offset (ms)')
     if i == 0:
         ax.set_ylabel('Vm (mV)')
@@ -140,7 +158,8 @@ for i, name in enumerate(conditions):
 ax = fig.add_subplot(gs[1, :2])
 for name, c in conditions.items():
     lat = results[name][0]
-    ax.plot(DURATIONS, lat, 'o-', color=c['color'], label=name)
+    ax.plot(DURATIONS, lat, 'o', ls=c['ls'], color=c['color'], label=name,
+            mfc='white' if c['ls'] == '--' else c['color'])
 ax.set_xlim(0, 105)
 ax.set_ylim(0, None)
 ax.set_xlabel('Stimulus duration (ms)')
@@ -151,12 +170,14 @@ ax.spines[['top', 'right']].set_visible(False)
 
 ax = fig.add_subplot(gs[1, 2:])
 for name, c in conditions.items():
-    ax.plot(DURATIONS, results[name][1], 'o-', color=c['color'], label=name)
+    ax.plot(DURATIONS, results[name][1], 'o', ls=c['ls'], color=c['color'],
+            label=name, mfc='white' if c['ls'] == '--' else c['color'])
 ax.set_xlabel('Stimulus duration (ms)')
 ax.set_ylabel('Number of offset APs')
 ax.set_title('AP number (cf. Fig. 7H)')
 ax.spines[['top', 'right']].set_visible(False)
 
-fig.suptitle('SPN model: -400 pA hyperpolarizing steps, 10-100 ms')
+fig.suptitle('SPN model: hyperpolarizing steps (-400 pA unless noted), '
+             '10-100 ms')
 fig.savefig('duration_vs_latency.png', dpi=150, bbox_inches='tight')
 print('saved duration_vs_latency.png')
