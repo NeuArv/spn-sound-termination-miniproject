@@ -181,3 +181,26 @@ fig.suptitle('SPN model: hyperpolarizing steps (-400 pA unless noted), '
              '10-100 ms')
 fig.savefig('duration_vs_latency.png', dpi=150, bbox_inches='tight')
 print('saved duration_vs_latency.png')
+
+# ---- slide figure: latency and AP number only, without the Vm-corrected
+# and -400 pA no-I_H variants ----
+SLIDE = ['Full model', NOIH, 'No $I_{TCa}$']
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
+for name in SLIDE:
+    c = conditions[name]
+    lat, nap = results[name]
+    ax1.plot(DURATIONS, lat, 'o-', color=c['color'], label=name)
+    ax2.plot(DURATIONS, nap, 'o-', color=c['color'], label=name)
+ax1.set_xlim(0, 105)
+ax1.set_ylim(0, None)
+ax1.set_ylabel('First offset AP latency (ms)')
+ax1.legend(frameon=False)
+ax2.set_xlim(0, 105)
+ax2.set_ylim(0, None)
+ax2.set_ylabel('Number of offset APs')
+for ax in (ax1, ax2):
+    ax.set_xlabel('Stimulus duration (ms)')
+    ax.spines[['top', 'right']].set_visible(False)
+fig.tight_layout()
+fig.savefig('duration_vs_latency_slide.png', dpi=300, bbox_inches='tight')
+print('saved duration_vs_latency_slide.png')
